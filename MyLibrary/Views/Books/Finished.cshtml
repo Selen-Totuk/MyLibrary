@@ -1,0 +1,52 @@
+@model IEnumerable<MyLibrary.Models.Book>
+@{ ViewData["Title"] = "Okuduklarım Kitaplığı"; }
+
+<div class="library-header text-center mb-5">
+    <h1 class="fw-bold">🏆 Bitirdiğim Kitaplar</h1>
+    <p class="text-muted">Bilginin raflardaki yansıması.</p>
+</div>
+
+<div class="bookshelf">
+    <div class="shelf-row">
+        @foreach (var book in Model) {
+            <div class="book-on-shelf" title="@book.Title - @book.Author">
+                <img src="@(book.CoverImage ?? "/images/default.png")" alt="@book.Title">
+                <div class="book-info-popup">
+                    <strong>@book.Title</strong><br>
+                    <small>@book.Author</small>
+                </div>
+            </div>
+        }
+    </div>
+    <div class="shelf-wood"></div>
+</div>
+
+<style>
+    .bookshelf { margin-top: 50px; perspective: 1000px; }
+    .shelf-row { 
+        display: flex; flex-wrap: wrap; justify-content: center; 
+        align-items: flex-end; padding: 0 20px; gap: 15px;
+    }
+    .book-on-shelf { 
+        width: 120px; height: 180px; transition: transform 0.3s; 
+        position: relative; cursor: pointer; z-index: 2;
+    }
+    .book-on-shelf img { 
+        width: 100%; height: 100%; object-fit: cover; 
+        box-shadow: -5px 0 10px rgba(0,0,0,0.5); border-radius: 2px 5px 5px 2px;
+    }
+    .book-on-shelf:hover { transform: translateZ(20px) scale(1.1) rotateY(-10deg); z-index: 10; }
+    
+    .shelf-wood {
+        height: 20px; background: #5d4037; border-bottom: 5px solid #3e2723;
+        width: 100%; border-radius: 2px; box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+        margin-top: -5px; position: relative; z-index: 1;
+    }
+
+    .book-info-popup {
+        position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+        background: rgba(0,0,0,0.8); color: white; padding: 8px; border-radius: 5px;
+        font-size: 11px; display: none; width: 150px; pointer-events: none;
+    }
+    .book-on-shelf:hover .book-info-popup { display: block; }
+</style>

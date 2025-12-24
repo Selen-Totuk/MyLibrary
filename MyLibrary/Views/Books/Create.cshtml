@@ -1,0 +1,133 @@
+@model MyLibrary.Models.Book
+@{
+    ViewData["Title"] = "Yeni Kitap Ekle";
+}
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-7">
+            <div class="card shadow-lg border-0 p-4" style="border-radius:20px; background: var(--card-bg);">
+                <h3 class="mb-4 fw-bold" style="color: var(--text-main);">➕ Yeni Kitap Ekle</h3>
+                
+                <form asp-action="Create" method="post" enctype="multipart/form-data">
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold" style="color: var(--text-main);">Kitap Başlığı</label>
+                        <input asp-for="Title" class="form-control form-control-lg" placeholder="Örn: 1984" required style="border-radius:12px; background: var(--bg-main); color: var(--text-main); border: 2px solid #e2e8f0;" />
+                        <span asp-validation-for="Title" class="text-danger small"></span>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold" style="color: var(--text-main);">Yazar</label>
+                        <input asp-for="Author" class="form-control form-control-lg" placeholder="Örn: George Orwell" required style="border-radius:12px; background: var(--bg-main); color: var(--text-main); border: 2px solid #e2e8f0;" />
+                        <span asp-validation-for="Author" class="text-danger small"></span>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold" style="color: var(--text-main);">Okuma Durumu</label>
+                        <select asp-for="Status" class="form-select form-select-lg" style="border-radius:12px; background: var(--bg-main); color: var(--text-main); border: 2px solid #e2e8f0;">
+                            <option value="1">📚 Okuyorum</option>
+                            <option value="2">📋 Okuyacaklarım</option>
+                            <option value="3">✅ Okuduklarım</option>
+                            <option value="4">🛒 Alacaklarım</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold" style="color: var(--text-main);">Kapak Görseli</label>
+                        
+                        <div class="mb-3 text-center p-4 border rounded" style="background: var(--bg-main); border-radius:12px; border: 2px dashed #cbd5e1 !important;">
+                            <img id="prev" src="" style="max-height:200px; display:none; border-radius:12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);" class="mb-3" />
+                            <p id="st" class="small mb-0" style="color: var(--text-main); opacity: 0.7;">
+                                📋 CTRL+V ile görsel yapıştırın veya aşağıdan dosya seçin
+                            </p>
+                        </div>
+                        
+                        <div class="mb-2">
+                            <label class="form-label small text-muted">Dosya seç</label>
+                            <input name="coverFile" id="fileInp" type="file" class="form-control" accept="image/*" style="border-radius:10px; background: var(--bg-main); color: var(--text-main);" />
+                        </div>
+                        
+                        <input type="hidden" name="coverUrl" id="coverUrl" />
+                    </div>
+
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold" style="color: var(--text-main);">Toplam Sayfa</label>
+                            <input asp-for="TotalPages" type="number" min="0" class="form-control form-control-lg" placeholder="Örn: 320" style="border-radius:12px; background: var(--bg-main); color: var(--text-main); border: 2px solid #e2e8f0;" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold" style="color: var(--text-main);">Okunan Sayfa</label>
+                            <input asp-for="PagesRead" type="number" min="0" class="form-control form-control-lg" placeholder="Örn: 0" style="border-radius:12px; background: var(--bg-main); color: var(--text-main); border: 2px solid #e2e8f0;" />
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-3">
+                        <button type="submit" class="btn btn-primary btn-lg flex-grow-1 shadow" style="border-radius:12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border:none;">
+                            💾 Kitabı Kaydet
+                        </button>
+                        <a asp-action="Index" class="btn btn-outline-secondary btn-lg" style="border-radius:12px;">
+                            ❌ İptal
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    document.addEventListener('paste', e => {
+        const item = Array.from(e.clipboardData.items).find(x => x.type.indexOf("image") !== -1);
+        if (item) {
+            e.preventDefault();
+            const reader = new FileReader();
+            reader.onload = event => {
+                const img = document.getElementById('prev');
+                const status = document.getElementById('st');
+                const input = document.getElementById('coverUrl');
+                
+                img.src = event.target.result;
+                img.style.display = 'inline-block';
+                input.value = event.target.result;
+                status.innerHTML = '✅ Görsel başarıyla yapıştırıldı!';
+                status.style.color = '#10b981';
+                status.style.fontWeight = 'bold';
+            };
+            reader.readAsDataURL(item.getAsFile());
+        }
+    });
+
+    // Dosya seçildiğinde önizleme göster
+    document.getElementById('fileInp').addEventListener('change', function(e) {
+        if (e.target.files && e.target.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = document.getElementById('prev');
+                const status = document.getElementById('st');
+                
+                img.src = event.target.result;
+                img.style.display = 'inline-block';
+                status.innerHTML = '✅ Dosya seçildi!';
+                status.style.color = '#10b981';
+                status.style.fontWeight = 'bold';
+            };
+            reader.readAsDataURL(e.target.files[0]);
+        }
+    });
+</script>
+}
+
+<style>
+.form-control:focus, .form-select:focus {
+    border-color: #667eea !important;
+    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25) !important;
+}
+
+body.theme-dark .form-control,
+body.theme-dark .form-select {
+    background: var(--bg-main) !important;
+    color: var(--text-main) !important;
+    border-color: #334155 !important;
+}
+</style>

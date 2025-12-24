@@ -1,0 +1,67 @@
+@model MyLibrary.Models.DashboardViewModel
+@{ ViewData["Title"] = "Panel"; }
+
+<div class="container py-4">
+    <h2 class="fw-bold mb-4">📊 Kitaplık İstatistikleri</h2>
+    
+    <div class="row g-4 mb-5">
+        <div class="col-md-3">
+            <div class="card p-3 shadow-sm border-0 status-1">
+                <h6 class="text-secondary">Okuyorum</h6>
+                <h2 class="fw-bold">@Model.Reading</h2>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card p-3 shadow-sm border-0 status-2">
+                <h6 class="text-secondary">Okuyacaklarım</h6>
+                <h2 class="fw-bold">@Model.ToRead</h2>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card p-3 shadow-sm border-0 status-3">
+                <h6 class="text-secondary">Okuduklarım</h6>
+                <h2 class="fw-bold">@Model.Finished</h2>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card p-3 shadow-sm border-0 status-4">
+                <h6 class="text-secondary">Alacaklarım</h6>
+                <h2 class="fw-bold">@Model.Purchased</h2>
+            </div>
+        </div>
+    </div>
+
+    <div class="card p-4 border-0 shadow-sm">
+        <h4 class="fw-bold mb-4">🆕 Son Eklenenler</h4>
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead>
+                    <tr>
+                        <th>Kapak</th>
+                        <th>Kitap</th>
+                        <th>Yazar</th>
+                        <th>Durum</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var book in Model.Recent)
+                    {
+                        <tr>
+                            <td>
+                                <img src="@(book.ThumbnailPath ?? book.CoverImage ?? "/images/default.png")" 
+                                     style="width:40px; height:60px; object-fit:cover; border-radius:4px;">
+                            </td>
+                            <td class="fw-bold">@book.Title</td>
+                            <td>@book.Author</td>
+                            <td>
+                                <span class="badge @(book.Status == 1 ? "bg-warning" : book.Status == 3 ? "bg-success" : "bg-primary")">
+                                    @(book.Status == 1 ? "Okuyor" : book.Status == 3 ? "Bitti" : "Listede")
+                                </span>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

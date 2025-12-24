@@ -1,0 +1,236 @@
+using Microsoft.AspNetCore.Mvc;
+using MyLibrary.Models;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Processing;
+
+namespace MyLibrary.Controllers
+{
+    public class BooksController : Controller
+    {
+        private readonly LibraryDbContext _db;
+        private readonly IWebHostEnvironment _env;
+
+        public BooksController(LibraryDbContext db, IWebHostEnvironment env)
+        {
+            _db = db;
+            _env = env;
+        }
+
+        private async Task<IActionResult> GetBooks(string? userId, int? status)
+        {
+            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+            string targetUserId = userId ?? currentUserId;
+
+            if (string.IsNullOrEmpty(targetUserId)) return RedirectToAction("Index", "Dashboard");
+
+            var query = _db.Books.Where(b => b.UserId == targetUserId);
+            if (status.HasValue) query = query.Where(b => b.Status == status.Value);
+
+            var books = await query.ToListAsync();
+
+            ViewBag.IsOwner = (targetUserId == currentUserId);
+            ViewBag.OwnerName = (targetUserId == currentUserId) ? "Benim" : "Kullanıcı";
+            return View("Index", books);
+        }
+
+        public async Task<IActionResult> Index(string? userId) => await GetBooks(userId, null);
+        public async Task<IActionResult> Reading() => await GetBooks(null, 1);
+        public async Task<IActionResult> ToRead() => await GetBooks(null, 2);
+        public async Task<IActionResult> Finished() => await GetBooks(null, 3);
+        public async Task<IActionResult> Purchased() => await GetBooks(null, 4);
+
+        [Authorize]
+        public IActionResult Create() => View();
+
+        [HttpPost] 
+        [ValidateAntiForgeryToken] 
+        [Authorize]
+        public async Task<IActionResult> Create(Book book, IFormFile? coverFile, string? coverUrl)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId)) return RedirectToAction("Login", "Account");
+            
+            book.UserId = userId;
+
+            if (ModelState.IsValid)
+            {
+                string imagesFolder = Path.Combine(_env.WebRootPath, "images");
+                if (!Directory.Exists(imagesFolder)) Directory.CreateDirectory(imagesFolder);
+
+                // Base64 (Yapıştır) İşlemi
+                if (!string.IsNullOrEmpty(coverUrl) && coverUrl.StartsWith("data:image"))
+                {
+                    var base64Data = coverUrl.Split(',')[1];
+                    byte[] binData = Convert.FromBase64String(base64Data);
+                    string fileName = Guid.NewGuid().ToString() + ".png";
+                    string fullPath = Path.Combine(imagesFolder, fileName);
+                    await System.IO.File.WriteAllBytesAsync(fullPath, binData);
+                    book.CoverImage = "/images/" + fileName;
+                    book.ThumbnailPath = await CreateThumbnail(fullPath);
+                }
+                // Dosya Seçme İşlemi
+                else if (coverFile != null && coverFile.Length > 0)
+                {
+                    string fileName = Guid.NewGuid().ToString() + Path.GetExtension(coverFile.FileName);
+                    string fullPath = Path.Combine(imagesFolder, fileName);
+                    using (var stream = System.IO.File.Create(fullPath))
+                    {
+                        await coverFile.CopyToAsync(stream);
+                    }
+                    book.CoverImage = "/images/" + fileName;
+                    book.ThumbnailPath = await CreateThumbnail(fullPath);
+                }
+
+                _db.Books.Add(book);
+                await _db.SaveChangesAsync();
+                return RedirectToAction(nameof(Index));
+            }
+            return View(book);
+        }
+
+        [Authorize]
+        public async Task<IActionResult> Edit(int id)
+        {
+            var book = await _db.Books.FindAsync(id);
+            if (book == null || book.UserId != User.FindFirstValue(ClaimTypes.NameIdentifier))
+                return NotFound();
+            return View(book);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [Authorize]
+        public async Task<IActionResult> Edit(Book book, IFormFile? coverFile, string? coverUrl)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId)) return RedirectToAction("Login", "Account");
+            
+            // Veritabanından mevcut kaydı al
+            var existingBook = await _db.Books.FindAsync(book.Id);
+            if (existingBook == null || existingBook.UserId != userId) 
+                return Forbid();
+
+            // Model validation hatalarını kontrol et
+            ModelState.Remove("UserId"); // UserId'yi validation'dan çıkar
+            
+            if (ModelState.IsValid)
+            {
+                string imagesFolder = Path.Combine(_env.WebRootPath, "images");
+                
+                // Mevcut kapak bilgilerini koru
+                string currentCover = existingBook.CoverImage ?? "";
+                string currentThumb = existingBook.ThumbnailPath ?? "";
+
+                // Yeni kapak yüklendiyse
+                if (!string.IsNullOrEmpty(coverUrl) && coverUrl.StartsWith("data:image"))
+                {
+                    var base64Data = coverUrl.Split(',')[1];
+                    byte[] binData = Convert.FromBase64String(base64Data);
+                    string fileName = Guid.NewGuid().ToString() + ".png";
+                    string fullPath = Path.Combine(imagesFolder, fileName);
+                    await System.IO.File.WriteAllBytesAsync(fullPath, binData);
+                    currentCover = "/images/" + fileName;
+                    currentThumb = await CreateThumbnail(fullPath);
+                }
+                else if (coverFile != null && coverFile.Length > 0)
+                {
+                    string fileName = Guid.NewGuid().ToString() + Path.GetExtension(coverFile.FileName);
+                    string fullPath = Path.Combine(imagesFolder, fileName);
+                    using (var stream = System.IO.File.Create(fullPath))
+                    {
+                        await coverFile.CopyToAsync(stream);
+                    }
+                    currentCover = "/images/" + fileName;
+                    currentThumb = await CreateThumbnail(fullPath);
+                }
+
+                // Tüm alanları güncelle
+                existingBook.Title = book.Title;
+                existingBook.Author = book.Author;
+                existingBook.Status = book.Status;
+                existingBook.TotalPages = book.TotalPages;
+                existingBook.PagesRead = book.PagesRead;
+                existingBook.CoverImage = currentCover;
+                existingBook.ThumbnailPath = currentThumb;
+
+                await _db.SaveChangesAsync();
+                return RedirectToAction(nameof(Index));
+            }
+            
+            // Hata varsa mevcut book'u döndür (UserId'yi koru)
+            book.UserId = userId;
+            return View(book);
+        }
+
+        [Authorize]
+        public async Task<IActionResult> Delete(int id)
+        {
+            var book = await _db.Books.FindAsync(id);
+            if (book != null && book.UserId == User.FindFirstValue(ClaimTypes.NameIdentifier))
+            {
+                _db.Books.Remove(book);
+                await _db.SaveChangesAsync();
+            }
+            return RedirectToAction(nameof(Index));
+        }
+
+        [HttpPost]
+        [Authorize]
+        public async Task<IActionResult> UploadCover(IFormFile image)
+        {
+            if (image == null || image.Length == 0)
+                return Json(new { success = false, message = "Dosya bulunamadı" });
+
+            try
+            {
+                string imagesFolder = Path.Combine(_env.WebRootPath, "images");
+                if (!Directory.Exists(imagesFolder)) Directory.CreateDirectory(imagesFolder);
+
+                string fileName = Guid.NewGuid().ToString() + Path.GetExtension(image.FileName);
+                string fullPath = Path.Combine(imagesFolder, fileName);
+
+                using (var stream = System.IO.File.Create(fullPath))
+                {
+                    await image.CopyToAsync(stream);
+                }
+
+                string url = "/images/" + fileName;
+                string thumb = await CreateThumbnail(fullPath);
+
+                return Json(new { success = true, url = url, thumb = thumb });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = ex.Message });
+            }
+        }
+
+        private async Task<string> CreateThumbnail(string originalPath)
+        {
+            try
+            {
+                string thumbName = "thumb_" + Path.GetFileName(originalPath);
+                string thumbPath = Path.Combine(Path.GetDirectoryName(originalPath)!, thumbName);
+
+                using (var image = await Image.LoadAsync(originalPath))
+                {
+                    image.Mutate(x => x.Resize(new ResizeOptions
+                    {
+                        Size = new Size(200, 300),
+                        Mode = ResizeMode.Max
+                    }));
+                    await image.SaveAsync(thumbPath);
+                }
+
+                return "/images/" + thumbName;
+            }
+            catch
+            {
+                return originalPath;
+            }
+        }
+    }
+}
